@@ -23,10 +23,10 @@ const FRONTEND_URL =
 
 console.log('Using FRONTEND_URL:', FRONTEND_URL);
 
-// Connect MongoDB
-connectDB();
+// ❌ XÓA HOẶC COMMENT DÒNG GỌI TRỰC TIẾP NÀY:
+// connectDB();
 
-// Middleware
+// 1. Cấu hình các Middleware cơ bản trước
 app.use(
   cors({
     origin: FRONTEND_URL,
@@ -35,25 +35,35 @@ app.use(
 );
 
 app.use(cookieParser());
-
 app.use(express.json({ limit: '50mb' }));
-
 app.use(
   express.urlencoded({
     limit: '50mb',
     extended: true,
   })
 );
-
 app.use(requestLogger);
 
-// Routes
+// 2. 🟢 CHÈN MIDDLEWARE KẾT NỐI DB TẠI ĐÂY
+// Đảm bảo kết nối DB luôn sẵn sàng trước khi đi vào các Routes bên dưới
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    // Nếu lỗi kết nối DB, trả về lỗi 500 ngay lập tức chứ không để Vercel bị treo 30 giây
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi kết nối cơ sở dữ liệu ngầm trên Serverless Vercel',
+      error: error.message
+    });
+  }
+});
+
+// 3. Các Routes xử lý API
 app.use('/api/auth', authRoutes);
-
 app.use('/api/brands', brandRoutes);
-
 app.use('/api/products', productRoutes);
-
 app.use('/api/categories', categoryRoutes);
 
 // Health check
@@ -66,7 +76,6 @@ app.get('/api/health', (req, res) => {
 
 // Error handlers
 app.use(notFound);
-
 app.use(errorHandler);
 
 export default app;
