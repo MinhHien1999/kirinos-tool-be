@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
-// 🖼️ Image & Media 
+// 🖼️ Image & Media
 // Tách biệt rõ ràng hoặc giữ chung tùy vào logic hiển thị Slider của bạn
 const ImageSchema = new Schema(
   {
@@ -13,8 +13,12 @@ const ImageSchema = new Schema(
     },
     url: { type: String, required: true },
     isMain: { type: Boolean, default: false },
+    public_id: {
+      type: String,
+      // Không để required: true vì các link video Youtube hoặc ảnh cũ chưa nén sẽ không có trường này
+    },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // 📊 Specs - Giữ nguyên mảng object để khớp với UI mới
@@ -23,7 +27,7 @@ const SpecSchema = new Schema(
     label: { type: String, trim: true },
     value: { type: String, trim: true },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const ProductSchema = new Schema(
@@ -43,8 +47,8 @@ const ProductSchema = new Schema(
       ref: 'Category',
       required: true,
     },
-    
-    // 🔥 THAY ĐỔI QUAN TRỌNG: 
+
+    // 🔥 THAY ĐỔI QUAN TRỌNG:
     // Vì dùng TinyMCE nên description phải là String để lưu HTML
     description: {
       type: String,
@@ -64,7 +68,7 @@ const ProductSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Index để tìm kiếm sản phẩm nhanh hơn theo tên

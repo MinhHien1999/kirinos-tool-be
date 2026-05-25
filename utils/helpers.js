@@ -109,3 +109,44 @@ export const uploadSingleToCloudinary = (file, folderName = 'uploads') => {
     uploadStream.end(file.buffer);
   });
 };
+
+/**
+ * Hàm tiện ích xóa ảnh rác trên Cloudinary và lọc lại danh sách ảnh trong DB
+ * @param {Array} currentImages - Mảng images hiện tại lấy từ database của sản phẩm
+ * @param {string|Array} imagesToDeleteInput - Chuỗi JSON hoặc mảng chứa các public_id cần xóa gửi từ Frontend
+ * @returns {Promise<Array>} - Trả về mảng ảnh mới (đã lọc bỏ ảnh xóa) để chuẩn bị cập nhật vào DB
+ */
+export const deleteCloudinaryImages = async (currentImages, imagesToDeleteInput) => {
+  // Nếu không có yêu cầu xóa, trả về danh sách ảnh hiện tại ngay lập tức
+  if (!imagesToDeleteInput) return currentImages.filter(img => img.type === 'image');
+
+  try {
+    // Ép kiểu dữ liệu về mảng phòng trường hợp Frontend gửi chuỗi JSON thô chưa parse
+    const publicIdsToDelete = typeof imagesToDeleteInput === 'string' 
+      ? JSON.parse(imagesToDeleteInput) 
+      : imagesToDeleteInput;
+
+    if (!Array.isArray(publicIdsToDelete) || publicIdsToDelete.length === 0) {
+      return currentImages.filter(img => img.type === 'image');
+    }
+
+    // 1. Tiến hành chạy vòng lặp xóa ảnh vật lý trên Cloudinary
+    for (const publicId of publicIdsToDelete) {
+      if (publicId) {
+        console.log(`🗑️ [Cloudinary Storage] Đang xóa file rác: ${publicId}`);
+        await cloudinary.uploader.destroy(publicId);
+      }
+    }
+
+    // 2. Lọc bỏ các phần tử ảnh có public_id nằm trong danh sách vừa xóa
+    const remainingPhotos = currentImages.filter(
+      img => img.type === 'image' && !publicIdsToDelete.includes(img.public_id)
+    );
+
+    return remainingPhotos;
+  } catch (error) {
+    console.error('🔴 Thất bại trong quá trình dọn dẹp bộ nhớ Cloudinary:', error.message);
+    // Nếu có lỗi bóc tách dữ liệu hiếm hoi, trả về mảng ảnh gốc để không làm gián đoạn luồng lưu DB
+    return currentImages.filter(img => img.type === 'image');
+  }
+};

@@ -1,65 +1,130 @@
-import cloudinary from '../config/cloudinary.js';
 import * as productService from '../services/product.service.js';
-// 🟢 Gọi trực tiếp hàm helper đã viết lại bằng Stream tối ưu của bạn
-import { processHtmlImages } from '../utils/helpers.js'; 
+import cloudinary from '../config/cloudinary.js';
+import { processHtmlImages } from '../utils/helpers.js';
 
-// Helper parse JSON an toàn
-const parseJsonField = (value) => {
-  if (!value) return undefined;
-  if (typeof value === 'string') {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value;
-    }
-  }
-  return value;
-};
-
-// Upload danh sách ảnh chính của sản phẩm thông qua Stream (Dành cho memoryStorage)
+/**
+ * Helper kỹ thuật hạ tầng mạng: Đọc dữ liệu từ RAM buffer ném trực tiếp lên Stream Cloudinary.
+ * Hàm này đặt tại Controller vì nó liên quan trực tiếp đến kiến trúc HTTP Multipart (`req.files`).
+ */
 const uploadToCloudinary = async (files) => {
   if (!files || !files.length) return [];
-  
+
   return await Promise.all(
     files.map((file) => {
       return new Promise((resolve, reject) => {
-        // Khởi tạo luồng stream đẩy trực tiếp dữ liệu nhị phân từ RAM lên Cloudinary
         const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            folder: 'products',
-            resource_type: 'image',
-          },
+          { folder: 'products', resource_type: 'image' },
           (error, result) => {
-            if (error) {
-              console.error('🔴 Lỗi stream ảnh chính lên Cloudinary:', error);
-              return reject(error);
-            }
-            if (result && result.secure_url) {
-              resolve({ type: 'image', url: result.secure_url });
-            } else {
-              reject(new Error('Không nhận được URL bảo mật từ Cloudinary'));
-            }
-          }
+            if (error) return reject(error);
+            resolve({
+              url: result.secure_url,
+              public_id: result.public_id,
+              originalName: file.originalname, // Giữ chìa khóa tên file thô gửi xuống Service đối chiếu
+            });
+          },
         );
-
-        // Đổ dữ liệu buffer từ bộ nhớ RAM vào luồng và đóng stream
         uploadStream.end(file.buffer);
       });
-    })
+    }),
   );
 };
 
+// ==========================================
+// --- ĐIỀU HƯỚNG HTTP & PHẢN HỒI CLIENT ---
+// ==========================================
 
-// ==========================================
-// --- CÁC HÀM LẤY DỮ LIỆU (GET) ---
-// ==========================================
+export const createProduct = async (req, res) => {
+  try {
+    const { name, slug, brand, category } = req.body;
+
+    // 1. Kiểm tra nhanh tính toàn vẹn dữ liệu mạng thô sơ
+    if (!name || !slug || !brand || !category) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Missing required fields' });
+    }
+
+    // 2. Chuyển đổi dữ liệu hạ tầng kỹ thuật mạng (Dịch ảnh TinyMCE + Upload file thô)
+    req.body.description = req.body.description
+      ? await processHtmlImages(req.body.description)
+      : '';
+    const uploadedRawImages = await uploadToCloudinary(req.files);
+
+    // 3. Đẩy toàn bộ payload sạch xuống tầng Nghiệp vụ xử lý logic lưu trữ
+    const newProduct = await productService.createProduct(
+      req.body,
+      uploadedRawImages,
+    );
+
+    res.status(201).json({ success: true, data: newProduct });
+  } catch (error) {
+    console.error('🔴 [Controller Error] Thêm mới sản phẩm thất bại:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Chuyển đổi dữ liệu hạ tầng
+    req.body.description = req.body.description
+      ? await processHtmlImages(req.body.description)
+      : undefined;
+    const newUploadedRawImages = await uploadToCloudinary(req.files);
+
+    // 2. Trao quyền quyết định giải bài toán logic sửa đổi/phân bổ cho Service
+    const result = await productService.updateProduct(
+      id,
+      req.body,
+      newUploadedRawImages,
+    );
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error('🔴 [Controller Error] Cập nhật sản phẩm thất bại:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const uploadProductImages = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!req.files || req.files.length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'No files uploaded' });
+    }
+
+    const newUploadedRawImages = await uploadToCloudinary(req.files);
+    const result = await productService.uploadProductImages(
+      id,
+      newUploadedRawImages,
+    );
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error('🔴 [Controller Error] Upload lẻ ảnh thất bại:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await productService.deleteProduct(id);
+    res.status(200).json({ success: true, message: 'Deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 export const getAllProducts = async (req, res) => {
   try {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 4;
 
-    const { total, products, totalPages } = await productService.getAllProducts({
+    const result = await productService.getAllProducts({
       search: req.query.search,
       brand: req.query.brand,
       category: req.query.category,
@@ -68,18 +133,7 @@ export const getAllProducts = async (req, res) => {
       limit,
     });
 
-    res.status(200).json({
-      success: true,
-      data: {
-        products,
-        pagination: {
-          currentPage: page,
-          totalPages: totalPages || Math.ceil(total / limit),
-          totalItems: total,
-          itemsPerPage: limit,
-        },
-      },
-    });
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -87,9 +141,11 @@ export const getAllProducts = async (req, res) => {
 
 export const getProductById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const product = await productService.getProductById(id);
-    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+    const product = await productService.getProductById(req.params.id);
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: 'Product not found' });
     res.status(200).json({ success: true, data: product });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -98,108 +154,8 @@ export const getProductById = async (req, res) => {
 
 export const searchProducts = async (req, res) => {
   try {
-    const { keyword } = req.query;
-    if (!keyword) return res.status(400).json({ success: false, message: 'Keyword is required' });
-    const products = await productService.searchProducts(keyword);
+    const products = await productService.searchProducts(req.query.keyword);
     res.status(200).json({ success: true, data: products });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-
-// ==========================================
-// --- CÁC HÀM XỬ LÝ (CREATE/UPDATE/DELETE) ---
-// ==========================================
-
-export const createProduct = async (req, res) => {
-  try {
-    const { name, slug, brand, category, description, specs, status } = req.body;
-    if (!name || !slug || !brand || !category) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
-    }
-
-    // 1. Gọi hàm xử lý ảnh từ TinyMCE thông qua file Helper bạn vừa import ở trên đầu
-    const cleanDescription = await processHtmlImages(description);
-
-    // 2. Upload danh sách ảnh chính sản phẩm thông qua Stream từ RAM (.buffer)
-    const uploadedImages = await uploadToCloudinary(req.files);
-    
-    const rawYoutubeUrls = Array.isArray(req.body.youtubeUrls) ? req.body.youtubeUrls : (req.body.youtubeUrls ? [req.body.youtubeUrls] : []);
-    const youtubeEntries = rawYoutubeUrls.filter(u => u?.trim()).map(url => ({ type: 'youtube', url: url.trim() }));
-
-    const newProduct = await productService.createProduct({
-      name, 
-      slug, 
-      brand, 
-      category, 
-      description: cleanDescription, // Lưu chuỗi nội dung mô tả sạch
-      images: [...uploadedImages, ...youtubeEntries],
-      specs: parseJsonField(specs),
-      status,
-    });
-
-    res.status(201).json({ success: true, data: newProduct });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const updateProduct = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const product = await productService.getProductById(id);
-    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
-
-    // 1. Gọi hàm xử lý ảnh nhúng TinyMCE từ file Helper khi cập nhật thông tin mô tả
-    const cleanDescription = await processHtmlImages(req.body.description);
-
-    // 2. Upload các ảnh chính sản phẩm được bổ sung mới
-    const newUploadedImages = await uploadToCloudinary(req.files);
-    
-    const rawYoutubeUrls = Array.isArray(req.body.youtubeUrls) ? req.body.youtubeUrls : (req.body.youtubeUrls ? [req.body.youtubeUrls] : []);
-    const youtubeEntries = rawYoutubeUrls.filter(u => u?.trim()).map(url => ({ type: 'youtube', url: url.trim() }));
-
-    const oldPhotos = (product.images || []).filter(img => img.type === 'image');
-
-    const updateData = {
-      name: req.body.name,
-      slug: req.body.slug,
-      brand: req.body.brand,
-      category: req.body.category,
-      description: cleanDescription,
-      specs: parseJsonField(req.body.specs),
-      status: req.body.status,
-      images: [...oldPhotos, ...newUploadedImages, ...youtubeEntries]
-    };
-
-    const result = await productService.updateProduct(id, updateData);
-    res.status(200).json({ success: true, data: result });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const uploadProductImages = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const product = await productService.getProductById(id);
-    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
-
-    const newImages = await uploadToCloudinary(req.files);
-    product.images = [...(product.images || []), ...newImages];
-    await product.save();
-    res.status(200).json({ success: true, data: product });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const deleteProduct = async (req, res) => {
-  try {
-    const product = await productService.deleteProduct(req.params.id);
-    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
-    res.status(200).json({ success: true, message: 'Deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
