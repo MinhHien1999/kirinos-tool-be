@@ -151,11 +151,173 @@ export const getProductById = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+export const getProductsByCategorySlug = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    
+    // 1. Lấy thông tin phân trang từ query string (mặc định page=1, limit=12 cho lưới sản phẩm)
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 12;
 
-export const searchProducts = async (req, res) => {
+    // 2. Gọi tầng Service xử lý logic MongoDB (Mongoose)
+    const result = await productService.getProductsByCategorySlug(slug, page, limit);
+
+    // 3. Nếu Service trả về null (Không tồn tại category với slug này)
+    if (!result) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Danh mục sản phẩm không tồn tại.' 
+      });
+    }
+    // 4. Phản hồi client với cấu trúc JSON chuẩn REST API thống nhất của hệ thống
+    res.status(200).json({ 
+      success: true, 
+      data: {
+        category: result.category,
+        products: result.products,
+        pagination: result.pagination
+      }
+    });
+
+  } catch (error) {
+    console.error('🔴 [Controller Error] Lấy sản phẩm theo danh mục thất bại:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getProductsByBrandSlug = async (req, res) => {
+  console.log('🔍 [Controller] getProductsByBrandSlug called with params:', req.params, 'and query:', req.query);
+  try {
+    const { slug } = req.params;
+    const { page, limit } = req.query; // Lấy tham số phân trang từ Query String (ví dụ: ?page=2&limit=12)
+
+    // 1. Kiểm tra tham số bắt buộc
+    if (!slug) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tham số brand slug là bắt buộc.'
+      });
+    }
+
+    // 2. Gọi sang tầng Service xử lý logic nghiệp vụ và truy vấn MongoDB Atlas
+    const result = await productService.getProductsByBrandSlug(slug, page, limit);
+
+    // 3. Nếu Service trả về null (Nghĩa là slug thương hiệu này không tồn tại trong DB)
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: `Không tìm thấy thương hiệu có slug là: "${slug}"`
+      });
+    }
+
+    // 4. Trả dữ liệu sạch về cho Frontend Next.js xử lý hiển thị giao diện
+    return res.status(200).json({
+      success: true,
+      message: 'Lấy danh sách sản phẩm theo thương hiệu thành công.',
+      data: {
+        brand: result.brand,
+        products: result.products,
+        pagination: result.pagination
+      }
+    });
+
+  } catch (error) {
+    console.error(`🔴 [Controller Error] Lỗi tại getProductsByBrandSlug:`, error.message);
+    
+    // Phản hồi lỗi hệ thống về phía Client một cách an toàn
+    return res.status(500).json({
+      success: false,
+      message: 'Đã xảy ra lỗi hệ thống khi lấy danh sách sản phẩm theo thương hiệu.',
+      error: error.message
+    });
+  }
+};
+export const searchProductsForAdmin = async (req, res) => {
   try {
     const products = await productService.searchProducts(req.query.keyword);
     res.status(200).json({ success: true, data: products });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * 🎮 CONTROLLER: Tìm kiếm nhanh sản phẩm phía CLIENT
+ * - Kiểm tra (Validate) từ khóa ngay tại đây: Nếu trống, trả về mảng rỗng ngay lập tức để tiết kiệm tài nguyên.
+ * - Loại bỏ hoàn toàn page, limit cồng kềnh (vì phía service đã ép cứng lấy 5 sản phẩm).
+ */
+export const getSearchSuggestionsForClient = async (req, res) => {
+  try {
+    const { keyword } = req.query;
+
+    // 🔥 1. Thực hiện kiểm tra từ khóa tại tầng Controller
+    // Nếu không gõ hoặc chỉ gõ toàn khoảng trắng, chặn truy vấn và trả về kết quả trống luôn
+    if (!keyword || !keyword.trim()) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        totalItems: 0
+      });
+    }
+
+    // 🟢 2. Từ khóa hợp lệ -> Gọi hàm Service bóc tách sạch sẽ (chỉ truyền duy nhất keyword)
+    const result = await productService.getSearchSuggestionsForClient(keyword);
+    
+    // 🟢 3. Trải kết quả phẳng ra JSON trả về cho Frontend nhận { success: true, data: [...], totalItems: X }
+    return res.status(200).json({ 
+      success: true, 
+      ...result 
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+export const getSearchProductsFullPage = async (req, res) => {
+  try {
+    const { keyword, page, limit } = req.query;
+
+    if (!keyword || !keyword.trim()) {
+      return res.status(200).json({ success: true, data: [], pagination: { totalItems: 0 } });
+    }
+
+    const result = await productService.searchProductsFullPage({
+      keyword,
+      page: parseInt(page, 10) || 1,
+      limit: parseInt(limit, 10) || 12 // Trang tổng hiển thị nhiều sản phẩm
+    });
+
+    res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+/**
+ * 🎮 CONTROLLER: Điều phối danh sách sản phẩm phía CLIENT
+ * - Thiết lập trạng thái status cố định ngay trong code để bảo mật.
+ */
+export const getProductsForClient = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 12;
+
+    // 🛠️ CẤU HÌNH TRẠNG THÁI TRONG CODE (Chọn 1 trong 2 cách sau):
+    
+    // Cách A: Nếu bạn muốn hiển thị cả hàng CÒN HÀNG và HẾT HÀNG ra cho khách xem
+    const statusFilter = { $in: ['in_stock', 'out_of_stock'] };
+    
+    // Cách B: Nếu bạn chỉ muốn khách nhìn thấy những hàng đang CÒN HÀNG (Ẩn hẳn hàng hết)
+    // const statusFilter = 'in_stock';
+
+    const result = await productService.getProductsForClient({
+      status: statusFilter, // Truyền biến đã thiết lập cố định trong code
+      page,
+      limit,
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      ...result 
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

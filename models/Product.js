@@ -34,18 +34,26 @@ const ProductSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
 
-    slug: { type: String, required: true, unique: true, lowercase: true },
+    slug: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      index: true,
+    },
 
     brand: {
       type: Schema.Types.ObjectId,
       ref: 'Brand',
       required: true,
+      index: true,
     },
 
     category: {
       type: Schema.Types.ObjectId,
       ref: 'Category',
       required: true,
+      index: true,
     },
 
     // 🔥 THAY ĐỔI QUAN TRỌNG:
@@ -71,8 +79,12 @@ const ProductSchema = new Schema(
   },
 );
 
-// Index để tìm kiếm sản phẩm nhanh hơn theo tên
-ProductSchema.index({ name: 'text' });
+// 🟢 CẬP NHẬT QUAN TRỌNG: Tạo Text Index thông minh hỗ trợ tìm kiếm Tiếng Việt không dấu
+// Đặt default_language là "none" để ép MongoDB chuẩn hóa bỏ dấu (diacritics) khi indexing dữ liệu.
+ProductSchema.index(
+  { name: 'text' },
+  { default_language: 'none', name: 'ProductSearchIndex' },
+);
 
 export default mongoose.models.Product ||
   mongoose.model('Product', ProductSchema);

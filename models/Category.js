@@ -16,6 +16,7 @@ const CategorySchema = new Schema(
       required: true,
       unique: true,
       lowercase: true,
+      index: true,
     },
 
     description: String, // optional
@@ -24,6 +25,7 @@ const CategorySchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Category",
       default: null, // for subcategories
+      index: true,
     },
   },
   {
@@ -32,7 +34,7 @@ const CategorySchema = new Schema(
 );
 
 // index SEO
-CategorySchema.index({ name: "text", slug: "text" });
+CategorySchema.index({ name: "text"});
 
 export default mongoose.models.Category ||
   mongoose.model("Category", CategorySchema);
