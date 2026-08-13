@@ -42,7 +42,7 @@ const deleteCloudinaryImages = async (currentImages, imagesToDeleteInput) => {
  * Nghiệp vụ: Tạo sản phẩm mới hoàn chỉnh
  */
 export const createProduct = async (productData, uploadedRawImages) => {
-  const { name, slug, brand, category, description, specs, status, mainImageId, youtubeUrls } = productData;
+  const { name, price, slug, brand, category, description, specs, status, mainImageId, youtubeUrls } = productData;
 
   // 1. 🟢 XỬ LÝ CHỐNG TRÙNG SLUG (Lấy slug từ FE gửi về để check)
     let finalSlug = slug || '';
@@ -81,6 +81,7 @@ export const createProduct = async (productData, uploadedRawImages) => {
   }
   const product = new Product({
     name,
+    price,
     slug: finalSlug,
     brand: brand || null,
     category: category || null,
@@ -148,6 +149,7 @@ export const updateProduct = async (id, rawData, newUploadedRawImages) => {
   }
 
   product.name = rawData.name;
+  product.price = rawData.price;
   product.slug = rawData.slug;
   product.brand = rawData.brand || null;
   product.category = rawData.category || null;

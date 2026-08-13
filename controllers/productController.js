@@ -35,24 +35,52 @@ const uploadToCloudinary = async (files) => {
 
 export const createProduct = async (req, res) => {
   try {
-    const { name, slug, brand, category } = req.body;
+    const { name, price, slug, brand, category } = req.body;
 
-    // 1. Kiểm tra nhanh tính toàn vẹn dữ liệu mạng thô sơ
-    if (!name || !slug || !brand || !category) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'Missing required fields' });
+    // 1. Kiểm tra tính toàn vẹn các trường thông tin bắt buộc
+    if (!name?.trim() || !slug?.trim() || !brand || !category) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Vui lòng điền đầy đủ các thông tin bắt buộc (Tên, Slug, Thương hiệu, Danh mục)',
+      });
     }
 
-    // 2. Chuyển đổi dữ liệu hạ tầng kỹ thuật mạng (Dịch ảnh TinyMCE + Upload file thô)
-    req.body.description = req.body.description
+    // 2. 🟢 Validate & Parse giá tiền (price) an toàn
+    let parsedPrice = 0;
+    if (price !== undefined && price !== null && price !== '') {
+      // Lọc bỏ tất cả ký tự không phải số (ví dụ: "1.000.000 đ" -> "1000000")
+      const cleanPriceStr =
+        typeof price === 'string' ? price.replace(/[^0-9]/g, '') : price;
+      parsedPrice = Number(cleanPriceStr);
+
+      // Bắt lỗi nếu nhập số âm hoặc chuỗi không hợp lệ
+      if (isNaN(parsedPrice) || parsedPrice <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Giá sản phẩm không hợp lệ (phải là số lớn hơn 0)',
+        });
+      }
+    }
+
+    // 3. Chuyển đổi dữ liệu hạ tầng kỹ thuật mạng (Dịch ảnh TinyMCE + Upload file thô)
+    const processedDescription = req.body.description
       ? await processHtmlImages(req.body.description)
       : '';
     const uploadedRawImages = await uploadToCloudinary(req.files);
 
-    // 3. Đẩy toàn bộ payload sạch xuống tầng Nghiệp vụ xử lý logic lưu trữ
+    // 4. Đóng gói Payload sạch sẽ trước khi gửi xuống Service
+    const productData = {
+      ...req.body,
+      name: name.trim(),
+      slug: slug.trim(),
+      price: parsedPrice, // 👈 Luôn là Number thuần túy (ví dụ: 1000000 hoặc 0)
+      description: processedDescription,
+    };
+
+    // 5. Đẩy toàn bộ payload sạch xuống tầng Nghiệp vụ xử lý logic lưu trữ
     const newProduct = await productService.createProduct(
-      req.body,
+      productData,
       uploadedRawImages,
     );
 
@@ -66,17 +94,57 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
+    const { name, price, slug, description } = req.body;
 
-    // 1. Chuyển đổi dữ liệu hạ tầng
-    req.body.description = req.body.description
-      ? await processHtmlImages(req.body.description)
-      : undefined;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu ID sản phẩm cần cập nhật',
+      });
+    }
+
+    // 1. 🟢 VALIDATE PRICE NẾU FE CÓ TRUYỀN LÊN (BẮT BUỘC PHẢI > 0)
+    let parsedPrice;
+    if (price !== undefined && price !== null) {
+      // Lọc bỏ ký tự không phải số
+      const cleanPriceStr =
+        typeof price === 'string' ? price.replace(/[^0-9]/g, '') : price;
+      parsedPrice = Number(cleanPriceStr);
+
+      // 🛑 Chặn nếu rỗng, không phải số HOẶC nhỏ hơn/bằng 0
+      if (isNaN(parsedPrice) || parsedPrice <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Giá sản phẩm không hợp lệ (phải là số nguyên lớn hơn 0)',
+        });
+      }
+    }
+
+    // 2. Chuyển đổi dữ liệu hạ tầng
+    const processedDescription =
+      description !== undefined
+        ? description
+          ? await processHtmlImages(description)
+          : ''
+        : undefined;
+
     const newUploadedRawImages = await uploadToCloudinary(req.files);
 
-    // 2. Trao quyền quyết định giải bài toán logic sửa đổi/phân bổ cho Service
+    // 3. Đóng gói Payload sạch
+    const productData = {
+      ...req.body,
+      ...(name !== undefined && { name: name.trim() }),
+      ...(slug !== undefined && { slug: slug.trim() }),
+      ...(parsedPrice !== undefined && { price: parsedPrice }),
+      ...(processedDescription !== undefined && {
+        description: processedDescription,
+      }),
+    };
+
+    // 4. Đẩy xuống Service xử lý
     const result = await productService.updateProduct(
       id,
-      req.body,
+      productData,
       newUploadedRawImages,
     );
 
@@ -154,39 +222,50 @@ export const getProductById = async (req, res) => {
 export const getProductsByCategorySlug = async (req, res) => {
   try {
     const { slug } = req.params;
-    
+
     // 1. Lấy thông tin phân trang từ query string (mặc định page=1, limit=12 cho lưới sản phẩm)
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 12;
 
     // 2. Gọi tầng Service xử lý logic MongoDB (Mongoose)
-    const result = await productService.getProductsByCategorySlug(slug, page, limit);
+    const result = await productService.getProductsByCategorySlug(
+      slug,
+      page,
+      limit,
+    );
 
     // 3. Nếu Service trả về null (Không tồn tại category với slug này)
     if (!result) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Danh mục sản phẩm không tồn tại.' 
+      return res.status(404).json({
+        success: false,
+        message: 'Danh mục sản phẩm không tồn tại.',
       });
     }
     // 4. Phản hồi client với cấu trúc JSON chuẩn REST API thống nhất của hệ thống
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       data: {
         category: result.category,
         products: result.products,
-        pagination: result.pagination
-      }
+        pagination: result.pagination,
+      },
     });
-
   } catch (error) {
-    console.error('🔴 [Controller Error] Lấy sản phẩm theo danh mục thất bại:', error);
+    console.error(
+      '🔴 [Controller Error] Lấy sản phẩm theo danh mục thất bại:',
+      error,
+    );
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 export const getProductsByBrandSlug = async (req, res) => {
-  console.log('🔍 [Controller] getProductsByBrandSlug called with params:', req.params, 'and query:', req.query);
+  console.log(
+    '🔍 [Controller] getProductsByBrandSlug called with params:',
+    req.params,
+    'and query:',
+    req.query,
+  );
   try {
     const { slug } = req.params;
     const { page, limit } = req.query; // Lấy tham số phân trang từ Query String (ví dụ: ?page=2&limit=12)
@@ -195,18 +274,22 @@ export const getProductsByBrandSlug = async (req, res) => {
     if (!slug) {
       return res.status(400).json({
         success: false,
-        message: 'Tham số brand slug là bắt buộc.'
+        message: 'Tham số brand slug là bắt buộc.',
       });
     }
 
     // 2. Gọi sang tầng Service xử lý logic nghiệp vụ và truy vấn MongoDB Atlas
-    const result = await productService.getProductsByBrandSlug(slug, page, limit);
+    const result = await productService.getProductsByBrandSlug(
+      slug,
+      page,
+      limit,
+    );
 
     // 3. Nếu Service trả về null (Nghĩa là slug thương hiệu này không tồn tại trong DB)
     if (!result) {
       return res.status(404).json({
         success: false,
-        message: `Không tìm thấy thương hiệu có slug là: "${slug}"`
+        message: `Không tìm thấy thương hiệu có slug là: "${slug}"`,
       });
     }
 
@@ -217,18 +300,21 @@ export const getProductsByBrandSlug = async (req, res) => {
       data: {
         brand: result.brand,
         products: result.products,
-        pagination: result.pagination
-      }
+        pagination: result.pagination,
+      },
     });
-
   } catch (error) {
-    console.error(`🔴 [Controller Error] Lỗi tại getProductsByBrandSlug:`, error.message);
-    
+    console.error(
+      `🔴 [Controller Error] Lỗi tại getProductsByBrandSlug:`,
+      error.message,
+    );
+
     // Phản hồi lỗi hệ thống về phía Client một cách an toàn
     return res.status(500).json({
       success: false,
-      message: 'Đã xảy ra lỗi hệ thống khi lấy danh sách sản phẩm theo thương hiệu.',
-      error: error.message
+      message:
+        'Đã xảy ra lỗi hệ thống khi lấy danh sách sản phẩm theo thương hiệu.',
+      error: error.message,
     });
   }
 };
@@ -256,17 +342,17 @@ export const getSearchSuggestionsForClient = async (req, res) => {
       return res.status(200).json({
         success: true,
         data: [],
-        totalItems: 0
+        totalItems: 0,
       });
     }
 
     // 🟢 2. Từ khóa hợp lệ -> Gọi hàm Service bóc tách sạch sẽ (chỉ truyền duy nhất keyword)
     const result = await productService.getSearchSuggestionsForClient(keyword);
-    
+
     // 🟢 3. Trải kết quả phẳng ra JSON trả về cho Frontend nhận { success: true, data: [...], totalItems: X }
-    return res.status(200).json({ 
-      success: true, 
-      ...result 
+    return res.status(200).json({
+      success: true,
+      ...result,
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -277,13 +363,15 @@ export const getSearchProductsFullPage = async (req, res) => {
     const { keyword, page, limit } = req.query;
 
     if (!keyword || !keyword.trim()) {
-      return res.status(200).json({ success: true, data: [], pagination: { totalItems: 0 } });
+      return res
+        .status(200)
+        .json({ success: true, data: [], pagination: { totalItems: 0 } });
     }
 
     const result = await productService.searchProductsFullPage({
       keyword,
       page: parseInt(page, 10) || 1,
-      limit: parseInt(limit, 10) || 12 // Trang tổng hiển thị nhiều sản phẩm
+      limit: parseInt(limit, 10) || 12, // Trang tổng hiển thị nhiều sản phẩm
     });
 
     res.status(200).json({ success: true, ...result });
@@ -301,10 +389,10 @@ export const getProductsForClient = async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 12;
 
     // 🛠️ CẤU HÌNH TRẠNG THÁI TRONG CODE (Chọn 1 trong 2 cách sau):
-    
+
     // Cách A: Nếu bạn muốn hiển thị cả hàng CÒN HÀNG và HẾT HÀNG ra cho khách xem
     const statusFilter = { $in: ['in_stock', 'out_of_stock'] };
-    
+
     // Cách B: Nếu bạn chỉ muốn khách nhìn thấy những hàng đang CÒN HÀNG (Ẩn hẳn hàng hết)
     // const statusFilter = 'in_stock';
 
@@ -314,9 +402,9 @@ export const getProductsForClient = async (req, res) => {
       limit,
     });
 
-    res.status(200).json({ 
-      success: true, 
-      ...result 
+    res.status(200).json({
+      success: true,
+      ...result,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

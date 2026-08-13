@@ -12,7 +12,13 @@ const ImageSchema = new Schema(
       default: 'image',
     },
     url: { type: String, required: true },
-    isMain: { type: Boolean, default: false },
+    isMain: {
+      type: Boolean,
+      default: false,
+      // Setter tự động xử lý khi nhận chuỗi rỗng ""
+      set: (val) =>
+        val === '' || val === null || val === undefined ? false : Boolean(val),
+    },
     public_id: {
       type: String,
       // Không để required: true vì các link video Youtube hoặc ảnh cũ chưa nén sẽ không có trường này
@@ -67,6 +73,22 @@ const ProductSchema = new Schema(
 
     // Mảng các thông số kỹ thuật (khớp với giao diện input mới)
     specs: [SpecSchema],
+
+    // 🟢 THÊM MỚI GIÁ BÁN (Number để tính toán và sắp xếp tăng/giảm)
+    price: {
+      type: Number,
+      required: true,
+      default: 0, // 0 có thể quy ước hiển thị trên UI là "Liên hệ"
+      index: true, // Đánh index để sau này làm bộ lọc theo khoảng giá cực mượt
+    },
+
+    // 🟢 THÊM MỚI SỐ LƯỢNG TỒN KHO
+    // quantity: {
+    //   type: Number,
+    //   required: true,
+    //   default: 0,
+    //   min: [0, 'Số lượng tồn kho không thể âm'],
+    // },
 
     status: {
       type: String,

@@ -9,34 +9,39 @@ import { uploadSingleToCloudinary } from '../utils/helpers.js';
 // Get all categories with pagination and filters
 export const getAllCategories = async (req, res) => {
   try {
+    // Ép kiểu các tham số query từ URL
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
+    const search = req.query.search || '';
 
-    const { total, categories } = await categoryService.getAllCategories({
-      search: req.query.search,
+    // Gọi đến service lấy dữ liệu danh mục
+    const { total, categories, totalPages, currentPage } = await categoryService.getAllCategories({
+      search,
       page,
       limit,
     });
 
-    const totalPages = Math.ceil(total / limit);
-
-    res.status(200).json({
+    // Trả về JSON theo đúng chuẩn response của hệ thống
+    return res.status(200).json({
       success: true,
+      message: 'Fetched categories successfully',
       data: {
         categories,
         pagination: {
-          currentPage: page,
+          currentPage,
           totalPages,
           totalItems: total,
           itemsPerPage: limit,
+          hasMore: currentPage < totalPages, // 🟢 Bổ sung cờ hasMore tiện cho Infinite Scroll ở Frontend
         },
       },
-      message: 'Fetched categories successfully',
     });
   } catch (error) {
-    res.status(500).json({
+    console.error('Error in getAllCategories controller:', error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || 'Lỗi hệ thống khi tải danh mục sản phẩm',
     });
   }
 };
