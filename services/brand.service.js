@@ -13,7 +13,7 @@ export const getAllBrands = async ({ search, page = 1, limit = 10 }) => {
   const skip = (currentPage - 1) * currentLimit;
   const total = await Brand.countDocuments(filter);
   const brands = await Brand.find(filter)
-    .sort({ createdAt: -1 })
+    .sort({ name: 1 })
     .skip(skip)
     .limit(currentLimit);
 

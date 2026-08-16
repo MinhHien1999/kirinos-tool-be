@@ -216,7 +216,7 @@ export const getProductsByCategorySlug = async (categorySlug, page = 1, limit = 
   const category = await Category.findOne({ slug: categorySlug }).lean();
   if (!category) return null;
 
-  const subCategories = await Category.find({ parent: category._id }).select('_id').lean();
+  const subCategories = await Category.find({ parent: category._id }).select('_id').sort({ name: 1 }).lean();
 
   const categoryIds = [category._id];
   if (subCategories.length > 0) {
