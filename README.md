@@ -1,242 +1,294 @@
 # Kirinos Tool Backend
 
-Backend API cho ứng dụng Kirinos Tool được xây dựng bằng **Express.js** với **MongoDB** (Mongoose) theo mô hình **MVC**.
+Backend API cho ứng dụng **Kirinos Tool**, được xây dựng bằng **Express.js** và **MongoDB (Mongoose)** theo mô hình **MVC (Model - View - Controller)**.
+
+> ⚠️ **Security Notice:** Repository này chỉ cung cấp thông tin kiến trúc và tài liệu API ở mức an toàn. Không công khai credentials, connection strings, JWT secrets hoặc các endpoint thao tác dữ liệu production.
+
+---
 
 ## 📁 Cấu trúc dự án
 
-```
+```text
 kirinos-tool-be/
+
 ├── config/
-│   └── database.js         # Cấu hình kết nối MongoDB
+│   └── database.js             # Cấu hình kết nối MongoDB
+│
 ├── models/
-│   ├── Brand.js           # Schema thương hiệu
-│   ├── Product.js         # Schema sản phẩm
-│   ├── Category.js        # Schema danh mục
-│   ├── Invoice.js         # Schema hóa đơn
-│   ├── InvoiceDetail.js   # Schema chi tiết hóa đơn
-│   └── index.js           # Export tất cả models
+│   ├── Brand.js                # Schema thương hiệu
+│   ├── Product.js              # Schema sản phẩm
+│   ├── Category.js             # Schema danh mục
+│   ├── Invoice.js              # Schema hóa đơn
+│   ├── InvoiceDetail.js        # Schema chi tiết hóa đơn
+│   └── index.js                # Export tất cả models
+│
 ├── controllers/
 │   ├── brandController.js      # Logic xử lý thương hiệu
 │   ├── productController.js    # Logic xử lý sản phẩm
 │   ├── categoryController.js   # Logic xử lý danh mục
-│   └── invoiceController.js    # Logic xử lý hóa đơn
+│   └── invoiceController.js     # Logic xử lý hóa đơn
+│
 ├── routes/
-│   ├── brandRoutes.js      # Route thương hiệu
-│   ├── productRoutes.js    # Route sản phẩm
-│   ├── categoryRoutes.js   # Route danh mục
-│   └── invoiceRoutes.js    # Route hóa đơn
+│   ├── brandRoutes.js           # Route thương hiệu
+│   ├── productRoutes.js         # Route sản phẩm
+│   ├── categoryRoutes.js        # Route danh mục
+│   └── invoiceRoutes.js         # Route hóa đơn
+│
 ├── middlewares/
-│   └── errorHandler.js     # Xử lý lỗi và logging
+│   └── errorHandler.js          # Xử lý lỗi và logging
+│
 ├── utils/
-│   └── helpers.js          # Hàm tiện ích
-├── server.js               # File khởi động chính
-├── package.json            # Dependencies
-└── .env.example            # Biến môi trường mẫu
+│   └── helpers.js               # Các hàm tiện ích
+│
+├── server.js                    # File khởi động server
+├── package.json                 # Dependencies
+└── .env.example                 # Biến môi trường mẫu
 ```
+
+---
 
 ## 🚀 Cài đặt
 
-1. **Cài đặt dependencies**
+### 1. Cài đặt dependencies
 
 ```bash
 npm install
 ```
 
-2. **Tạo file .env**
+### 2. Tạo file `.env`
 
 ```bash
 cp .env.example .env
 ```
 
-3. **Cấu hình MongoDB**
-   Cập nhật `MONGODB_URI` trong file `.env`:
+### 3. Cấu hình MongoDB
 
-```
+Cập nhật biến môi trường trong file `.env`:
+
+```env
 MONGODB_URI=mongodb://localhost:27017/kirinos-tool
 PORT=3000
 NODE_ENV=development
 ```
 
-4. **Khởi động server**
+> Không commit file `.env` hoặc bất kỳ credentials/secret nào lên GitHub.
+
+### 4. Khởi động server
 
 ```bash
 npm run dev
 ```
 
-## 📚 API Endpoints
+---
 
-### Brands (Thương hiệu)
+## 📚 API
 
-- `GET /api/brands` - Lấy tất cả thương hiệu
-- `GET /api/brands/:id` - Lấy thương hiệu theo ID
-- `POST /api/brands` - Tạo thương hiệu mới
-- `PUT /api/brands/:id` - Cập nhật thương hiệu
-- `DELETE /api/brands/:id` - Xóa thương hiệu
+Backend cung cấp RESTful API cho các nhóm tài nguyên:
 
-### Categories (Danh mục)
+### Brands
 
-- `GET /api/categories` - Lấy tất cả danh mục
-- `GET /api/categories/:id` - Lấy danh mục theo ID
-- `POST /api/categories` - Tạo danh mục mới
-- `PUT /api/categories/:id` - Cập nhật danh mục
-- `DELETE /api/categories/:id` - Xóa danh mục
+```text
+GET /api/brands
+GET /api/brands/:id
+```
 
-### Products (Sản phẩm)
+Dùng để lấy danh sách thương hiệu và thông tin một thương hiệu.
 
-- `GET /api/products` - Lấy tất cả sản phẩm
-- `GET /api/products/:id` - Lấy sản phẩm theo ID
-- `GET /api/products/search?keyword=...` - Tìm kiếm sản phẩm
-- `POST /api/products` - Tạo sản phẩm mới
-- `PUT /api/products/:id` - Cập nhật sản phẩm
-- `DELETE /api/products/:id` - Xóa sản phẩm
+### Categories
 
-## 📝 Ví dụ Request/Response
+```text
+GET /api/categories
+GET /api/categories/:id
+```
 
-### Tạo sản phẩm
+Dùng để lấy danh sách danh mục và thông tin một danh mục.
 
-**Request:**
+### Products
+
+```text
+GET /api/products
+GET /api/products/:id
+GET /api/products/search?keyword=...
+```
+
+Dùng để lấy danh sách sản phẩm, thông tin chi tiết và tìm kiếm sản phẩm.
+
+### Invoices
+
+Các API liên quan đến hóa đơn được tổ chức trong:
+
+```text
+/api/invoices
+```
+
+Chi tiết các endpoint thao tác dữ liệu không được công khai trong README của repository production.
+
+---
+
+## 📦 Product Data
+
+Một sản phẩm có thể bao gồm các thông tin như:
 
 ```json
-POST /api/products
 {
-  "name": "Motor Hồng Ký 3HP",
-  "slug": "motor-hong-ky-3hp",
-  "brand": "665a12...",
-  "category": "665b45...",
-  "description": [
-    {
-    "type": "text",
-    "content": "Nội dung..."
-    },
-  {
-    "type": "image",
-    "url": "https://..."
-  },
-  {
-    "type": "video",
-    "url": "https://youtube.com/..."
-  }
-  ],
-  "images": [
-    {
-      "type": "image",
-      "url": "https://example.com/p1.jpg",
-      "isMain": true
-    },
-    {
-      "type": "youtube",
-      "url": "https://www.youtube.com/watch?v=jAGI65kmsds"
-    }
-  ],
-  "specs": [
-    { "label": "Công suất", "value": "3 HP" },
-    { "label": "Nguồn", "value": "220V" }
-  ],
+  "name": "Tên sản phẩm",
+  "slug": "ten-san-pham",
+  "brand": "brandId",
+  "category": "categoryId",
+  "description": [],
+  "images": [],
+  "specs": [],
   "status": "in_stock"
 }
 ```
 
-**Response:**
+### Images
+
+Hệ thống hỗ trợ nhiều loại nội dung trong gallery sản phẩm, bao gồm hình ảnh và video YouTube.
+
+Ví dụ:
 
 ```json
 {
-  "success": true,
-  "data": {
-    "_id": "665f1c...",
-    "name": "Motor Hồng Ký 3HP",
-    "slug": "motor-hong-ky-3hp",
-    "brand": "665a12...",
-    "category": "665b45...",
-    "description": "Motor hoạt động ổn định",
-    "images": [
-      {
-        "type": "image",
-        "url": "https://example.com/p1.jpg",
-        "isMain": true
-      },
-      {
-        "type": "youtube",
-        "url": "https://www.youtube.com/watch?v=jAGI65kmsds"
-      }
-    ],
-    "specs": [
-      { "label": "Công suất", "value": "3 HP" },
-      { "label": "Nguồn", "value": "220V" }
-    ],
-    "status": "in_stock",
-    "createdAt": "2026-04-20T10:00:00Z",
-    "updatedAt": "2026-04-20T10:00:00Z"
-  },
-  "message": "Product created successfully"
+  "type": "image",
+  "url": "https://example.com/image.jpg",
+  "isMain": true
 }
 ```
 
-### Tạo danh mục
-
-**Request:**
-
-```json
-POST /api/categories
-{
-  "name": "Motor điện",
-  "slug": "motor-dien",
-  "description": "Các loại motor điện công nghiệp",
-  "parent": null
-}
-```
-
-**Response:**
+hoặc:
 
 ```json
 {
-  "success": true,
-  "data": {
-    "_id": "665f1c...",
-    "name": "Motor điện",
-    "slug": "motor-dien",
-    "description": "Các loại motor điện công nghiệp",
-    "parent": null,
-    "createdAt": "2026-04-20T10:00:00Z",
-    "updatedAt": "2026-04-20T10:00:00Z"
-  },
-  "message": "Category created successfully"
+  "type": "youtube",
+  "url": "https://www.youtube.com/watch?v=..."
 }
 ```
+
+### Specifications
+
+Thông tin kỹ thuật của sản phẩm được lưu dưới dạng danh sách:
+
+```json
+{
+  "label": "Công suất",
+  "value": "3 HP"
+}
+```
+
+---
+
+## 🏗️ Architecture
+
+Project sử dụng mô hình **MVC** và phân chia trách nhiệm giữa các layer:
+
+```text
+Request
+   ↓
+Routes
+   ↓
+Controllers
+   ↓
+Models
+   ↓
+MongoDB
+```
+
+### Routes
+
+Định nghĩa các API endpoint và chuyển request đến controller tương ứng.
+
+### Controllers
+
+Chứa business logic và xử lý request/response.
+
+### Models
+
+Định nghĩa schema và tương tác với MongoDB thông qua Mongoose.
+
+### Middlewares
+
+Xử lý các logic dùng chung như error handling.
+
+### Utils
+
+Chứa các helper functions được sử dụng trong nhiều phần của hệ thống.
+
+---
 
 ## 🛠️ Tech Stack
 
-- **Runtime**: Node.js
-- **Framework**: Express.js
-- **Database**: MongoDB
-- **ODM**: Mongoose
-- **CORS**: Cross-origin resource sharing
-- **Environment**: dotenv
+- **Runtime:** Node.js
+- **Framework:** Express.js
+- **Database:** MongoDB
+- **ODM:** Mongoose
+- **Authentication:** JWT
+- **Password Hashing:** bcryptjs
+- **File Upload:** Multer
+- **Validation:** Joi
+- **CORS:** cors
+- **Environment Variables:** dotenv
+
+---
 
 ## 📦 Dependencies
 
-- express@^4.18.2
-- mongoose@^7.6.3
-- cors@^2.8.5
-- dotenv@^16.3.1
-- bcryptjs@^2.4.3
-- jsonwebtoken@^9.1.0
-- multer@^1.4.5
-- joi@^17.11.0
+### Production
 
-## 🔧 Development
+```text
+express
+mongoose
+cors
+dotenv
+bcryptjs
+jsonwebtoken
+multer
+joi
+```
 
-- nodemon@^3.0.1 (tự động khởi động lại server khi file thay đổi)
+### Development
 
-## 📖 Hướng dẫn thêm
+```text
+nodemon
+```
 
-Các tính năng có thể mở rộng:
+---
 
-- 🔐 Authentication & Authorization
-- 📸 Upload hình ảnh
-- 📊 Statistics & Analytics
-- 🔍 Advanced filtering & sorting
-- 📄 Pagination
-- ✔️ Input validation
+## 🔐 Security
+
+Một số nguyên tắc bảo mật được áp dụng trong project:
+
+- Sử dụng biến môi trường cho các thông tin cấu hình.
+- Không commit `.env` lên repository.
+- Sử dụng JWT cho authentication.
+- Hash password trước khi lưu vào database.
+- Validate dữ liệu đầu vào.
+- Sử dụng middleware để xử lý lỗi.
+- Cấu hình CORS cho việc giao tiếp giữa Frontend và Backend.
+
+**Các endpoint có khả năng tạo, cập nhật hoặc xóa dữ liệu production không được liệt kê công khai trong README.**
+
+---
+
+## 🌐 Frontend
+
+Frontend của Kirinos Tool được xây dựng riêng bằng Next.js và ReactJS.
+
+**Frontend Repository:**
+
+https://github.com/MinhHien1999/kirinos-tool-fe
+
+**Live Demo:**
+
+https://kirinos-tool.vercel.app/
+
+---
+
+## 👨‍💻 Author
+
+**Huỳnh Hữu Minh Hiền**
+
+GitHub: https://github.com/MinhHien1999
 
 ---
 
