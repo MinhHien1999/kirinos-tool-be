@@ -18,15 +18,13 @@ import {
 
 const app = express();
 
-const FRONTEND_URL =
-  process.env.FRONTEND_URL || 'http://localhost:3000';
-
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 console.log('Using FRONTEND_URL:', FRONTEND_URL);
 
-// ❌ XÓA HOẶC COMMENT DÒNG GỌI TRỰC TIẾP NÀY:
-// connectDB();
+// 1. Kết nối Database ngay khi khởi động ứng dụng trên Fly.io
+connectDB();
 
-// 1. Cấu hình các Middleware cơ bản trước
+// 2. Cấu hình các Middleware cơ bản
 app.use(
   cors({
     origin: FRONTEND_URL,
@@ -44,25 +42,10 @@ app.use(
 );
 app.use(requestLogger);
 
-// 2. 🟢 CHÈN MIDDLEWARE KẾT NỐI DB TẠI ĐÂY
-// Đảm bảo kết nối DB luôn sẵn sàng trước khi đi vào các Routes bên dưới
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (error) {
-    // Nếu lỗi kết nối DB, trả về lỗi 500 ngay lập tức chứ không để Vercel bị treo 30 giây
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi kết nối cơ sở dữ liệu ngầm trên Serverless Vercel',
-      error: error.message
-    });
-  }
-});
-
 app.get('/', (req, res) => {
   res.status(200).send('Kirinos Tool Backend is running!');
 });
+
 // 3. Các Routes xử lý API
 app.use('/api/auth', authRoutes);
 app.use('/api/brands', brandRoutes);
