@@ -60,6 +60,9 @@ app.use(async (req, res, next) => {
   }
 });
 
+app.get('/', (req, res) => {
+  res.status(200).send('Kirinos Tool Backend is running!');
+});
 // 3. Các Routes xử lý API
 app.use('/api/auth', authRoutes);
 app.use('/api/brands', brandRoutes);
